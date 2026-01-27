@@ -1,1 +1,2070 @@
-.
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>여행과 보관함</title>
+    <script type="text/javascript"
+        src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId={{ naver_map_key }}"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: #f5f5f5;
+        }
+
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+
+        #toggle-button {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: #2ecc71;
+            padding: 12px 16px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            cursor: pointer;
+            border: none;
+            font-size: 24px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #toggle-button:hover {
+            transform: translateX(-50%) scale(1.05);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        #toggle-button.off {
+            background: #95a5a6;
+        }
+
+        #route-toggle {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(40px);
+            z-index: 1000;
+            background: #e67e22;
+            padding: 12px 16px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            cursor: pointer;
+            border: none;
+            font-size: 24px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #route-toggle:hover {
+            transform: translateX(40px) scale(1.05);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        #route-toggle.off {
+            background: #95a5a6;
+            opacity: 0.8;
+        }
+
+        #mode-selector {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: none;
+            gap: 10px;
+        }
+
+        #mode-selector.visible {
+            display: flex;
+        }
+
+                .dot-ani {
+           animation: blink 1.5s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
+        }
+
+        .mode-option {
+            padding: 5px 10px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            color: #555;
+            transition: all 0.2s;
+        }
+
+        .mode-option.active {
+            background: #e67e22;
+            color: white;
+        }
+
+        .info-window {
+            padding: 15px;
+            min-width: 250px;
+        }
+
+        .info-window h3 {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        .info-window .detail {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 12px;
+        }
+
+        .info-window .availability {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .info-window .locker-type {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .info-window .locker-type .label {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .info-window .locker-type .count {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .info-window .locker-type.large .count {
+            color: #e74c3c;
+        }
+
+        .info-window .locker-type.medium .count {
+            color: #3498db;
+        }
+
+        .info-window .locker-type.small .count {
+            color: #2ecc71;
+        }
+
+        .info-window .address {
+            font-size: 11px;
+            color: #999;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+        }
+
+        .marker-label {
+            background: #fff;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            white-space: nowrap;
+        }
+
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 2000;
+        }
+
+        #loading.hidden {
+            display: none;
+        }
+
+        /* Daily Trip Planner Styles */
+        #trip-planner {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 350px;
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+            z-index: 900;
+            transition: transform 0.3s ease;
+            overflow-y: auto;
+            color: white;
+        }
+
+        #trip-planner.hidden {
+            transform: translateX(-100%);
+        }
+
+        #trip-planner-header {
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid rgba(56, 17, 17, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #trip-planner-header div {
+            flex: 1;
+        }
+
+        #trip-planner-header h2 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        #trip-planner-header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        #save-plan {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.3s ease;
+        }
+
+        #save-plan:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+
+        .day-item {
+            margin: 10px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .day-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateX(5px);
+        }
+
+        .day-header {
+            padding: 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+
+        .day-header h3 {
+            font-size: 18px;
+            margin: 0;
+        }
+
+        .day-header .arrow {
+            transition: transform 0.3s ease;
+            font-size: 20px;
+        }
+
+        .day-item.expanded .arrow {
+            transform: rotate(180deg);
+        }
+
+        .day-details {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .day-item.expanded .day-details {
+            max-height: 1000px;
+        }
+
+        .day-details-content {
+            padding: 15px;
+        }
+
+        .activity {
+            margin-bottom: 12px;
+            padding-left: 20px;
+            padding-right: 10px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.2s;
+            border-radius: 8px;
+        }
+
+        .activity:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .activity:before {
+            content: '•';
+            position: absolute;
+            left: 5px;
+            font-size: 20px;
+            top: 0px;
+        }
+
+        .activity-time {
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .activity-description {
+            font-size: 13px;
+            opacity: 0.9;
+            margin-top: 3px;
+        }
+
+        .transport-info {
+            font-size: 11px;
+            color: #ddd;
+            margin-bottom: 4px;
+            font-style: italic;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .transport-info span {
+            font-weight: bold;
+            color: #ff0505;
+        }
+
+        #planner-toggle {
+            position: fixed;
+            top: 80px;
+            left: 20px;
+            z-index: 1000;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 12px 16px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            cursor: pointer;
+            border: none;
+            font-size: 24px;
+            transition: all 0.3s ease;
+        }
+
+        #planner-toggle:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        /* History Sidebar Styles */
+        #history-sidebar {
+            position: fixed;
+            right: 0;
+            top: 0;
+            width: 350px;
+            height: 100vh;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+            z-index: 900;
+            transition: transform 0.3s ease;
+            overflow-y: auto;
+            color: white;
+        }
+
+        #history-sidebar.hidden {
+            transform: translateX(100%);
+        }
+
+        #history-header {
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #history-header h2 {
+            font-size: 24px;
+            margin: 0;
+        }
+
+        #clear-history {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        #clear-history:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        #history-list {
+            padding: 10px;
+        }
+
+        .history-item {
+            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .history-item:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateX(-5px);
+        }
+
+        .history-item-header {
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-item-title {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .history-item-date {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .history-item-preview {
+            padding: 0 15px 15px 15px;
+            font-size: 13px;
+            opacity: 0.9;
+        }
+
+        .history-item-actions {
+            padding: 10px 15px;
+            background: rgba(0, 0, 0, 0.1);
+            display: flex;
+            gap: 10px;
+        }
+
+        .history-item-actions button {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
+
+        .history-item-actions button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        #history-toggle {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 1000;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            padding: 12px 16px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            cursor: pointer;
+            border: none;
+            font-size: 24px;
+            transition: all 0.3s ease;
+        }
+
+        #history-toggle:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .empty-history {
+            text-align: center;
+            padding: 40px 20px;
+            opacity: 0.7;
+        }
+
+        .empty-history-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        /* Chatbot Styles */
+        #chatbot-container {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%) translateY(100%);
+            width: 675px;
+            max-width: 90vw;
+            height: 500px;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            border-radius: 20px 20px 0 0;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+            z-index: 950;
+            transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            display: flex;
+            flex-direction: column;
+        }
+
+        #chatbot-container.visible {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        #chatbot-header {
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 20px 20px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+        }
+
+        #chatbot-header h3 {
+            margin: 0;
+            font-size: 20px;
+        }
+
+        #chatbot-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.3s ease;
+        }
+
+        #chatbot-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: rotate(90deg);
+        }
+
+        #chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .chat-message {
+            padding: 12px 16px;
+            border-radius: 18px;
+            max-width: 80%;
+            word-wrap: break-word;
+            animation: messageSlide 0.3s ease;
+        }
+
+        @keyframes messageSlide {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .chat-message.user {
+            background: rgba(255, 255, 255, 0.9);
+            color: #1e3c72;
+            align-self: flex-end;
+            margin-left: auto;
+        }
+
+        .chat-message.bot {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            align-self: flex-start;
+            backdrop-filter: blur(10px);
+        }
+
+        #chat-input-container {
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            display: flex;
+            gap: 10px;
+        }
+
+        #chat-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 25px;
+            background: rgba(255, 255, 255, 0.9);
+            font-size: 14px;
+            outline: none;
+        }
+
+        #chat-input:focus {
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+        }
+
+        #chat-send {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        #chat-send:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        #chat-toggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+            border: none;
+            font-size: 28px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #chat-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Scrollbar Styles */
+        #trip-planner::-webkit-scrollbar,
+        #chat-messages::-webkit-scrollbar,
+        #history-sidebar::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #trip-planner::-webkit-scrollbar-track,
+        #chat-messages::-webkit-scrollbar-track,
+        #history-sidebar::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        #trip-planner::-webkit-scrollbar-thumb,
+        #chat-messages::-webkit-scrollbar-thumb,
+        #history-sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+        }
+
+        #trip-planner::-webkit-scrollbar-thumb:hover,
+        #chat-messages::-webkit-scrollbar-thumb:hover,
+        #history-sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        /* Plan update animation */
+        @keyframes planUpdate {
+            0% {
+                transform: translateX(-100%);
+            }
+
+            50% {
+                transform: translateX(0) scale(1.02);
+                box-shadow: 0 0 30px rgba(102, 126, 234, 0.5);
+            }
+
+            100% {
+                transform: translateX(0) scale(1);
+            }
+        }
+
+        /* Language Toggle */
+        #lang-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1001;
+            background: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            font-weight: 600;
+            color: #4a5568;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        #lang-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+        }
+
+        /* Blinking Animation for Markers */
+        @keyframes blink-animation {
+            0% {
+                opacity: 1;
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7);
+            }
+
+            50% {
+                opacity: 0.7;
+                transform: scale(1.1);
+                box-shadow: 0 0 10px 10px rgba(231, 76, 60, 0);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(231, 76, 60, 0);
+            }
+        }
+
+        .marker-blink {
+            animation: blink-animation 1.5s infinite;
+        }
+
+        /* Save notification */
+        @keyframes saveNotification {
+            0% {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            50% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+        }
+
+        .save-notification {
+            position: fixed;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(46, 204, 113, 0.95);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            z-index: 2000;
+            animation: saveNotification 2s ease;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="lang-toggle">
+        <span class="lang-icon">🌐</span>
+        <span id="lang-text">한글</span>
+    </div>
+
+    <button id="toggle-button" title="Toggle Lockers">🗄️</button>
+    <button id="route-toggle" class="off" title="Toggle Route">🛣️</button>
+
+    <div id="mode-selector">
+        <div class="mode-option active" data-mode="transit">🚌 Transit</div>
+        <div class="mode-option" data-mode="car">🚗 Car</div>
+    </div>
+
+    <button id="planner-toggle" title="Toggle Trip Planner">📅</button>
+    <button id="history-toggle" title="Toggle History">📚</button>
+    <button id="chat-toggle">💬</button>
+
+    <!-- Daily Trip Planner -->
+    <div id="trip-planner">
+        <div id="trip-planner-header">
+            <div>
+                <h2 data-i18n="tripPlanTitle">🗺️ Trip Plan</h2>
+                <p data-i18n="tripPlanSubtitle">Seoul Adventure</p>
+            </div>
+            <button id="save-plan" title="Save Current Plan">💾</button>
+        </div>
+        <div id="trip-days"></div>
+    </div>
+
+    <!-- History Sidebar -->
+    <div id="history-sidebar" class="hidden">
+        <div id="history-header">
+            <h2 data-i18n="historyTitle">📚 History</h2>
+            <button id="clear-history" title="Clear all history">🗑️</button>
+        </div>
+        <div id="history-list"></div>
+    </div>
+
+    <!-- Chatbot -->
+    <div id="chatbot-container">
+        <div id="chatbot-header">
+            <h3 data-i18n="botTitle">🤖 Trip Assistant</h3>
+            <button id="chatbot-close">×</button>
+        </div>
+        <div id="chat-messages">
+            <div class="chat-message bot" data-i18n="chatWelcome">
+                Hi! I'm your trip planning assistant. I can help you plan your Seoul adventure, find the best routes,
+                and suggest activities. How can I help you today?
+            </div>
+        </div>
+        <div id="chat-input-container">
+            <input type="text" id="chat-input" placeholder="Ask me anything about your trip...">
+            <button id="chat-send" data-i18n="chatSend">Send</button>
+        </div>
+    </div>
+
+    <div id="loading">
+        <p data-i18n="loading">데이터 로딩중...</p>
+    </div>
+
+    <div id="map"></div>
+
+    <script>
+        let map;
+        let markers = [];
+        let infoWindows = [];
+        let polylines = [];
+        let currentRouteMode = 'transit';
+        let routeVisible = false;
+        let routeLayer = [];
+        let routeMarkers = [];
+        let currentRoutePath = null;
+
+        // 네이버 지도 초기화
+        function initMap() {
+            try {
+                if (typeof naver === 'undefined' || !naver.maps) {
+                    throw new Error('Naver Maps API not loaded');
+                }
+
+                const mapOptions = {
+                    center: new naver.maps.LatLng(37.5665, 126.9780),
+                    zoom: 11,
+                    minZoom: 10,
+                    maxZoom: 18
+                };
+
+                map = new naver.maps.Map('map', mapOptions);
+                console.log('Map initialized successfully');
+            } catch (error) {
+                console.error('Failed to initialize map:', error);
+                document.getElementById('map').innerHTML = `
+                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #666; background: #eee; padding: 20px; text-align: center;">
+                        <span style="font-size: 48px; margin-bottom: 20px;">⚠️</span>
+                        <h3>지도 로딩 실패</h3>
+                        <p>Naver Maps API 인증에 실패했거나 실행 중 오류가 발생했습니다.</p>
+                        <p style="font-size: 12px; margin-top: 10px; color: #999;">Error: ${error.message}</p>
+                    </div>
+                `;
+            } finally {
+                loadLockerData();
+            }
+        }
+
+        // 보관함 데이터 로드
+        async function loadLockerData() {
+            try {
+                const response = await fetch('/api/lockers');
+                const data = await response.json();
+
+                if (data.success) {
+                    createMarkers(data.lockers);
+                    document.getElementById('loading').classList.add('hidden');
+
+                    if (routeVisible && currentRoutePath) {
+                        filterLockersByRoute(currentRoutePath);
+                    }
+                } else {
+                    alert('데이터 로딩에 실패했습니다.');
+                }
+            } catch (error) {
+                console.error('Error loading locker data:', error);
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        }
+
+        // 마커 생성
+        function createMarkers(lockers) {
+            lockers.forEach(locker => {
+                if (!locker.lat || !locker.lng) return;
+
+                const position = new naver.maps.LatLng(locker.lat, locker.lng);
+
+                const totalAvailable = locker.large.available +
+                    locker.medium.available +
+                    locker.small.available;
+
+                const markerColor = totalAvailable > 0 ? '#2ecc71' : '#e74c3c';
+
+                const marker = new naver.maps.Marker({
+                    position: position,
+                    map: markersVisible ? map : null,
+                    title: locker.name,
+                    icon: {
+                        content: `
+                            <div style="
+                                background: ${markerColor};
+                                width: 24px;
+                                height: 24px;
+                                border-radius: 50%;
+                                border: 3px solid white;
+                                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                color: white;
+                                font-size: 12px;
+                                font-weight: bold;
+                            ">
+                                ${totalAvailable}
+                            </div>
+                        `,
+                        anchor: new naver.maps.Point(12, 12)
+                    }
+                });
+
+                marker.metadata = {
+                    lat: locker.lat,
+                    lng: locker.lng,
+                    name: locker.name
+                };
+
+                const contentString = `
+                    <div class="info-window">
+                        <h3>${locker.name}</h3>
+                        <div class="detail">${locker.detail}</div>
+                        <div class="availability">
+                            <div class="locker-type large">
+                                <span class="label">대형</span>
+                                <span class="count">${locker.large.available}개 사용가능</span>
+                            </div>
+                            <div class="locker-type medium">
+                                <span class="label">중형</span>
+                                <span class="count">${locker.medium.available}개 사용가능</span>
+                            </div>
+                            <div class="locker-type small">
+                                <span class="label">소형</span>
+                                <span class="count">${locker.small.available}개 사용가능</span>
+                            </div>
+                        </div>
+                        <div class="address">📍 ${locker.address}</div>
+                    </div>
+                `;
+
+                const infoWindow = new naver.maps.InfoWindow({
+                    content: contentString,
+                    backgroundColor: '#fff',
+                    borderColor: '#ddd',
+                    borderWidth: 1,
+                    anchorSize: new naver.maps.Size(10, 10),
+                    pixelOffset: new naver.maps.Point(0, -10)
+                });
+
+                naver.maps.Event.addListener(marker, 'mouseover', function () {
+                    infoWindow.open(map, marker);
+                });
+
+                naver.maps.Event.addListener(marker, 'mouseout', function () {
+                    infoWindow.close();
+                });
+
+                naver.maps.Event.addListener(marker, 'click', function () {
+                    if (infoWindow.getMap()) {
+                        infoWindow.close();
+                    } else {
+                        infoWindows.forEach(iw => iw.close());
+                        infoWindow.open(map, marker);
+                    }
+                });
+
+                markers.push(marker);
+                infoWindows.push(infoWindow);
+            });
+        }
+
+        window.onload = initMap;
+
+        let markersVisible = true;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const toggleButton = document.getElementById('toggle-button');
+            const routeToggle = document.getElementById('route-toggle');
+            const modeSelector = document.getElementById('mode-selector');
+            const modeOptions = document.querySelectorAll('.mode-option');
+
+            toggleButton.addEventListener('click', function () {
+                markersVisible = !markersVisible;
+                if (markersVisible) {
+                    this.classList.remove('off');
+                } else {
+                    this.classList.add('off');
+                }
+                markers.forEach(marker => {
+                    if (!filterActive) {
+                        marker.setMap(markersVisible ? map : null);
+                    } else if (marker.filteredIn) {
+                        marker.setMap(markersVisible ? map : null);
+                    }
+                });
+            });
+
+            routeToggle.addEventListener('click', function () {
+                routeVisible = !routeVisible;
+
+                if (routeVisible) {
+                    this.classList.remove('off');
+                    modeSelector.classList.add('visible');
+                    drawRequiredRoutes();
+                } else {
+                    this.classList.add('off');
+                    modeSelector.classList.remove('visible');
+                    clearRoutes();
+                    resetLockerFilter();
+                }
+            });
+
+            modeOptions.forEach(option => {
+                option.addEventListener('click', function () {
+                    modeOptions.forEach(opt => opt.classList.remove('active'));
+                    this.classList.add('active');
+                    currentRouteMode = this.dataset.mode;
+
+                    if (routeVisible) {
+                        drawRequiredRoutes();
+                    }
+                });
+            });
+        });
+
+        function clearRoutes() {
+            routeLayer.forEach(polyline => polyline.setMap(null));
+            routeLayer = [];
+
+            routeMarkers.forEach(m => m.setMap(null));
+            routeMarkers = [];
+
+            currentRoutePath = null;
+        }
+
+        let filterActive = false;
+
+        function resetLockerFilter() {
+            filterActive = false;
+            markers.forEach(marker => {
+                marker.filteredIn = true;
+                marker.setMap(markersVisible ? map : null);
+            });
+        }
+
+        function filterLockersByRoute(path) {
+            if (!path || path.length < 2) return;
+
+            filterActive = true;
+            const maxDist = 500;
+
+            markers.forEach(marker => {
+                let isNear = false;
+                const markerPos = marker.getPosition();
+
+                for (let i = 0; i < path.length - 1; i++) {
+                    if (isLocationNearSegment(
+                        markerPos.lat(), markerPos.lng(),
+                        path[i].lat(), path[i].lng(),
+                        path[i + 1].lat(), path[i + 1].lng(),
+                        maxDist
+                    )) {
+                        isNear = true;
+                        break;
+                    }
+                }
+
+                marker.filteredIn = isNear;
+                marker.setMap((markersVisible && isNear) ? map : null);
+            });
+        }
+
+        function deg2rad(deg) { return deg * (Math.PI / 180); }
+        
+        function getDistanceFromLatLonInM(lat1, lon1, lat2, lon2) {
+            var R = 6371;
+            var dLat = deg2rad(lat2 - lat1);
+            var dLon = deg2rad(lon2 - lon1);
+            var a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            var d = R * c;
+            return d * 1000;
+        }
+
+        function isLocationNearSegment(pLat, pLng, aLat, aLng, bLat, bLng, maxDist) {
+            const R = 6371000;
+            const x = (deg2rad(pLng) - deg2rad(aLng)) * Math.cos((deg2rad(pLat) + deg2rad(aLat)) / 2);
+            const y = (deg2rad(pLat) - deg2rad(aLat));
+
+            const Px = x * R;
+            const Py = y * R;
+
+            const dx = (deg2rad(bLng) - deg2rad(aLng)) * Math.cos((deg2rad(bLat) + deg2rad(aLat)) / 2) * R;
+            const dy = (deg2rad(bLat) - deg2rad(aLat)) * R;
+
+            const dot = Px * dx + Py * dy;
+            const len_sq = dx * dx + dy * dy;
+
+            let param = -1;
+            if (len_sq !== 0)
+                param = dot / len_sq;
+
+            let xx, yy;
+
+            if (param < 0) {
+                xx = 0;
+                yy = 0;
+            } else if (param > 1) {
+                xx = dx;
+                yy = dy;
+            } else {
+                xx = dx * param;
+                yy = dy * param;
+            }
+
+            const d = Math.sqrt(Math.pow(Px - xx, 2) + Math.pow(Py - yy, 2));
+            return d < maxDist;
+        }
+
+        function getBearing(lat1, lng1, lat2, lng2) {
+            const y = Math.sin(lng2 - lng1) * Math.cos(lat2);
+            const x = Math.cos(lat1) * Math.sin(lat2) -
+                Math.sin(lat1) * Math.cos(lat2) * Math.cos(lng2 - lng1);
+            const brng = Math.atan2(y, x) * 180 / Math.PI;
+            return (brng + 360) % 360;
+        }
+
+        async function drawRequiredRoutes(specificDayInd = null) {
+            if (!routeVisible) return;
+
+            clearRoutes();
+
+            let dayToDraw = null;
+
+            if (specificDayInd !== null) {
+                dayToDraw = tripData.find(d => d.day === specificDayInd);
+            } else {
+                const expanded = document.querySelector('.day-item.expanded');
+                if (expanded) {
+                    const title = expanded.querySelector('h3').innerText;
+                    const dayNum = parseInt(title.replace(/\D/g, ''));
+                    dayToDraw = tripData.find(d => d.day === dayNum);
+                }
+            }
+
+            if (!dayToDraw || !dayToDraw.activities || dayToDraw.activities.length < 2) {
+                resetLockerFilter();
+                return;
+            }
+
+            const coords = [];
+            for (let act of dayToDraw.activities) {
+                if (act.lat && act.lng) {
+                    coords.push({ lat: act.lat, lng: act.lng });
+                }
+            }
+
+            if (coords.length < 2) return;
+
+            coords.forEach((coord, i) => {
+                let label = (i + 1).toString();
+                let color = '#34495e';
+                let extraClass = '';
+
+                if (i === 0) {
+                    label = 'S';
+                    color = '#27ae60';
+                    extraClass = 'marker-blink';
+                }
+                else if (i === coords.length - 1) {
+                    label = 'E';
+                    color = '#c0392b';
+                    extraClass = 'marker-blink';
+                }
+
+                const marker = new naver.maps.Marker({
+                    position: new naver.maps.LatLng(coord.lat, coord.lng),
+                    map: map,
+                    icon: {
+                        content: `
+                            <div class="${extraClass}" style="
+                                background: ${color};
+                                color: white;
+                                width: 24px; height: 24px;
+                                border-radius: 50%;
+                                display: flex; align-items: center; justify-content: center;
+                                font-weight: bold; font-size: 12px;
+                                border: 2px solid white;
+                                box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                            ">${label}</div>
+                        `,
+                        anchor: new naver.maps.Point(12, 12)
+                    }
+                });
+                routeMarkers.push(marker);
+            });
+
+            const fullPath = [];
+
+            for (let i = 0; i < dayToDraw.activities.length - 1; i++) {
+                const start = dayToDraw.activities[i];
+                const end = dayToDraw.activities[i + 1];
+
+                if (!start.lat || !end.lat) continue;
+
+                try {
+                    const subMode = end.sub_mode || '';
+                    const res = await fetch(`/api/route?start=${start.lat},${start.lng}&end=${end.lat},${end.lng}&mode=${currentRouteMode}&sub_mode=${subMode}`);
+                    const data = await res.json();
+
+                    if (data.success) {
+                        if (currentRouteMode === 'transit' && data.subPaths) {
+                            for (const sub of data.subPaths) {
+                                if (!sub.path || sub.path.length === 0) continue;
+
+                                // Use the detailed path from backend (already includes loadLane data)
+                                const subCoords = sub.path.map(p => new naver.maps.LatLng(p[0], p[1]));
+                                let color = '#95a5a6';
+                                let style = 'shortdash';
+                                let weight = 3;
+
+                                if (sub.trafficType === 1) {
+                                    color = '#3498db';
+                                    style = 'solid';
+                                    weight = 5;
+                                } else if (sub.trafficType === 2) {
+                                    color = '#2ecc71';
+                                    style = 'solid';
+                                    weight = 5;
+                                }
+
+                                // Draw the path with smooth curves
+                                const polyline = new naver.maps.Polyline({
+                                    map: map,
+                                    path: subCoords,
+                                    strokeColor: color,
+                                    strokeWeight: weight,
+                                    strokeOpacity: 0.8,
+                                    strokeStyle: style,
+                                    strokeLineCap: 'round',
+                                    strokeLineJoin: 'round',
+                                    endIcon: sub.trafficType !== 3 ? naver.maps.PointingIcon.OPEN_ARROW : null,
+                                    endIconSize: 20
+                                });
+                                routeLayer.push(polyline);
+                                subCoords.forEach(p => fullPath.push(p));
+
+                                if (sub.stations && sub.stations.length > 0) {
+                                    const board = sub.stations[0];
+                                    const alight = sub.stations[sub.stations.length - 1];
+
+                                    [board, alight].forEach((st, idx) => {
+                                        const isBoard = idx === 0;
+                                        const stMarker = new naver.maps.Marker({
+                                            position: new naver.maps.LatLng(st.lat, st.lng),
+                                            map: map,
+                                            icon: {
+                                                content: `
+                                                    <div style="display: flex; flex-direction: column; align-items: center;">
+                                                        <div style="
+                                                            background: ${color};
+                                                            color: white;
+                                                            padding: 2px 6px;
+                                                            border-radius: 10px;
+                                                            font-size: 10px;
+                                                            font-weight: bold;
+                                                            border: 1px solid white;
+                                                            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                                                            white-space: nowrap;
+                                                            margin-bottom: 2px;
+                                                        ">${isBoard ? 'TAKE' : 'OFF'}: ${st.name}</div>
+                                                        <div style="width: 8px; height: 8px; background: white; border: 2px solid ${color}; border-radius: 50%;"></div>
+                                                    </div>
+                                                `,
+                                                anchor: new naver.maps.Point(0, 25)
+                                            }
+                                        });
+                                        routeMarkers.push(stMarker);
+                                    });
+                                }
+
+                                // Add directional arrows along the path
+                                const arrowIndices = [0.2, 0.4, 0.6, 0.8].map(r => Math.floor(subCoords.length * r));
+                                arrowIndices.forEach(idx => {
+                                    if (idx > 0 && idx < subCoords.length - 1) {
+                                        const p1 = subCoords[idx];
+                                        const p2 = subCoords[idx + 1];
+                                        const lat1 = deg2rad(p1.lat()), lon1 = deg2rad(p1.lng());
+                                        const lat2 = deg2rad(p2.lat()), lon2 = deg2rad(p2.lng());
+                                        const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+                                        const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+                                        const brng = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+
+                                        const arrow = new naver.maps.Marker({
+                                            position: p1,
+                                            map: map,
+                                            icon: {
+                                                content: `<div style="transform: rotate(${brng - 90}deg); font-size: 16px; color: ${color}; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;">➤</div>`,
+                                                anchor: new naver.maps.Point(8, 8)
+                                            }
+                                        });
+                                        routeMarkers.push(arrow);
+                                    }
+                                });
+                            }
+                        } else if (data.path) {
+                            const pathCoords = data.path.map(p => new naver.maps.LatLng(p[0], p[1]));
+                            const polyline = new naver.maps.Polyline({
+                                map: map,
+                                path: pathCoords,
+                                strokeColor: currentRouteMode === 'transit' ? '#3498db' : '#e67e22',
+                                strokeWeight: 5,
+                                strokeOpacity: 0.8,
+                                strokeStyle: currentRouteMode === 'transit' ? 'solid' : 'shortdash',
+                                endIcon: naver.maps.PointingIcon.OPEN_ARROW,
+                                endIconSize: 20
+                            });
+                            routeLayer.push(polyline);
+                            pathCoords.forEach(p => fullPath.push(p));
+
+                            const arrowIndices = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9].map(r => Math.floor(pathCoords.length * r));
+                            arrowIndices.forEach(idx => {
+                                if (idx < pathCoords.length - 1) {
+                                    const p1 = pathCoords[idx];
+                                    const p2 = pathCoords[idx + 1];
+                                    const lat1 = deg2rad(p1.lat()), lon1 = deg2rad(p1.lng());
+                                    const lat2 = deg2rad(p2.lat()), lon2 = deg2rad(p2.lng());
+                                    const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+                                    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+                                    const brng = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+
+                                    const arrow = new naver.maps.Marker({
+                                        position: p1,
+                                        map: map,
+                                        icon: {
+                                            content: `<div style="transform: rotate(${brng - 90}deg); font-size: 18px; color: ${currentRouteMode === 'transit' ? '#3498db' : '#e67e22'}; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;">➤</div>`,
+                                            anchor: new naver.maps.Point(9, 9)
+                                        }
+                                    });
+                                    routeMarkers.push(arrow);
+                                }
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.error("Route fetch error", e);
+                }
+            }
+
+            currentRoutePath = fullPath;
+            filterLockersByRoute(fullPath);
+        }
+
+        function highlightSegment(day, actIndex) {
+            const dayData = tripData.find(d => d.day === day);
+            if (!dayData) return;
+
+            // Calculate offset for left sidebar (350px width)
+            const sidebarWidth = 350;
+            
+            // We want to shift the view to the RIGHT to compensate for left sidebar
+            const offsetPixels = sidebarWidth / 2;  // Shift right by half sidebar width
+
+            if (actIndex > 0) {
+                const prev = dayData.activities[actIndex - 1];
+                const curr = dayData.activities[actIndex];
+
+                if (prev.lat && curr.lat) {
+                    if (!routeVisible) {
+                        document.getElementById('route-toggle').click();
+                    }
+
+                    const bounds = new naver.maps.LatLngBounds(
+                        new naver.maps.LatLng(prev.lat, prev.lng),
+                        new naver.maps.LatLng(curr.lat, curr.lng)
+                    );
+                    
+                    // Fit bounds with left padding for sidebar
+                    map.fitBounds(bounds, { 
+                        left: sidebarWidth + 50,  // Extra padding for sidebar
+                        right: 50,
+                        top: 50,
+                        bottom: 50
+                    });
+                }
+            } else if (dayData.activities[actIndex].lat) {
+                const act = dayData.activities[actIndex];
+                const targetLatLng = new naver.maps.LatLng(act.lat, act.lng);
+                
+                // Get current projection
+                const projection = map.getProjection();
+                
+                // Convert target coordinates to screen pixels
+                const targetPoint = projection.fromCoordToOffset(targetLatLng);
+                
+                // Shift the point LEFT (so when centered, the location appears more to the right)
+                // This compensates for the left sidebar
+                const adjustedPoint = new naver.maps.Point(
+                    targetPoint.x - offsetPixels,  // Subtract to shift view right
+                    targetPoint.y
+                );
+                
+                // Convert back to coordinates and set as center
+                const adjustedLatLng = projection.fromOffsetToCoord(adjustedPoint);
+                
+                map.setCenter(adjustedLatLng);
+                map.setZoom(14);
+            }
+        }
+
+        // Language Data
+        const translations = {
+            en: {
+                tripPlanTitle: "🗺️ Trip Plan",
+                tripPlanSubtitle: "Seoul Adventure",
+                day: "Day",
+                emptyPlan: "No activities planned yet. Ask the chatbot to add some!",
+                chatWelcome: "Hi! I'm your trip planning assistant. I can help you plan your Seoul adventure. How can I help you today?",
+                chatPlaceholder: "Ask about lockers or trip planning...",
+                langBtn: "한글",
+                botTitle: "🤖 Trip Assistant",
+                chatSend: "Send",
+                loading: "Loading data...",
+                historyTitle: "📚 History",
+                clearHistory: "Clear All",
+                loadPlan: "Load",
+                deletePlan: "Delete",
+                emptyHistory: "No saved plans yet",
+                savedOn: "Saved on"
+            },
+            ko: {
+                tripPlanTitle: "🗺️ 여행 일정",
+                tripPlanSubtitle: "서울 모험",
+                day: "일차",
+                emptyPlan: "일정이 없습니다. 챗봇에게 추가해달라고 하세요!",
+                chatWelcome: "안녕하세요! 여행 계획 도우미입니다. 서울 여행 계획을 도와드릴까요? 무엇을 도와드릴까요?",
+                chatPlaceholder: "보관함이나 여행 계획을 물어보세요...",
+                langBtn: "English",
+                botTitle: "🤖 여행 도우미",
+                chatSend: "전송",
+                loading: "데이터 로딩중...",
+                historyTitle: "📚 여행 기록",
+                clearHistory: "전체 삭제",
+                loadPlan: "불러오기",
+                deletePlan: "삭제",
+                emptyHistory: "저장된 계획이 없습니다",
+                savedOn: "저장일"
+            }
+        };
+
+        let currentLang = 'ko';
+
+        // Trip Planner Functionality
+        let tripData = [
+            {
+                day: 1,
+                title: "Day 1",
+                activities: []
+            },
+            {
+                day: 2,
+                title: "Day 2",
+                activities: []
+            },
+            {
+                day: 3,
+                title: "Day 3",
+                activities: []
+            }
+        ];
+
+        // Local Storage Management
+        const STORAGE_KEY = 'trip_history';
+        const MAX_HISTORY = 20; // Maximum number of saved plans
+
+        function saveCurrentPlan() {
+            // Check if there are any activities
+            const hasActivities = tripData.some(day => day.activities && day.activities.length > 0);
+            
+            if (!hasActivities) {
+                showNotification(currentLang === 'ko' ? '저장할 일정이 없습니다' : 'No plan to save', 'warning');
+                return;
+            }
+
+            const history = getTripHistory();
+            
+            const planToSave = {
+                id: Date.now(),
+                timestamp: new Date().toISOString(),
+                data: JSON.parse(JSON.stringify(tripData)), // Deep copy
+                summary: generatePlanSummary(tripData)
+            };
+
+            history.unshift(planToSave);
+            
+            // Keep only MAX_HISTORY plans
+            if (history.length > MAX_HISTORY) {
+                history.splice(MAX_HISTORY);
+            }
+
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+            refreshHistoryList();
+            showNotification(currentLang === 'ko' ? '여행 계획이 저장되었습니다!' : 'Plan saved successfully!', 'success');
+        }
+
+        function getTripHistory() {
+            try {
+                const stored = localStorage.getItem(STORAGE_KEY);
+                return stored ? JSON.parse(stored) : [];
+            } catch (e) {
+                console.error('Error loading history:', e);
+                return [];
+            }
+        }
+
+        function generatePlanSummary(data) {
+            const daysWithActivities = data.filter(d => d.activities && d.activities.length > 0);
+            const totalActivities = daysWithActivities.reduce((sum, d) => sum + d.activities.length, 0);
+            
+            if (totalActivities === 0) return currentLang === 'ko' ? '빈 계획' : 'Empty plan';
+            
+            const firstActivity = daysWithActivities[0]?.activities[0]?.description || '';
+            return `${daysWithActivities.length} ${currentLang === 'ko' ? '일차' : 'days'}, ${totalActivities} ${currentLang === 'ko' ? '개 활동' : 'activities'}`;
+        }
+
+        function loadPlanFromHistory(planId) {
+            const history = getTripHistory();
+            const plan = history.find(p => p.id === planId);
+            
+            if (plan) {
+                tripData = JSON.parse(JSON.stringify(plan.data)); // Deep copy
+                refreshTripPlanner();
+                showNotification(currentLang === 'ko' ? '계획을 불러왔습니다!' : 'Plan loaded!', 'success');
+                
+                // Close history sidebar
+                document.getElementById('history-sidebar').classList.add('hidden');
+                document.getElementById('history-toggle').style.right = '20px';
+            }
+        }
+
+        function deletePlanFromHistory(planId) {
+            if (!confirm(currentLang === 'ko' ? '이 계획을 삭제하시겠습니까?' : 'Delete this plan?')) {
+                return;
+            }
+            
+            let history = getTripHistory();
+            history = history.filter(p => p.id !== planId);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+            refreshHistoryList();
+            showNotification(currentLang === 'ko' ? '계획이 삭제되었습니다' : 'Plan deleted', 'info');
+        }
+
+        function clearAllHistory() {
+            if (!confirm(currentLang === 'ko' ? '모든 기록을 삭제하시겠습니까?' : 'Clear all history?')) {
+                return;
+            }
+            
+            localStorage.removeItem(STORAGE_KEY);
+            refreshHistoryList();
+            showNotification(currentLang === 'ko' ? '모든 기록이 삭제되었습니다' : 'History cleared', 'info');
+        }
+
+        function refreshHistoryList() {
+            const historyList = document.getElementById('history-list');
+            const history = getTripHistory();
+
+            if (history.length === 0) {
+                historyList.innerHTML = `
+                    <div class="empty-history">
+                        <div class="empty-history-icon">📭</div>
+                        <p>${translations[currentLang].emptyHistory}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            historyList.innerHTML = history.map(plan => {
+                const date = new Date(plan.timestamp);
+                const dateStr = date.toLocaleDateString(currentLang === 'ko' ? 'ko-KR' : 'en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                return `
+                    <div class="history-item">
+                        <div class="history-item-header">
+                            <div>
+                                <div class="history-item-title">${plan.summary}</div>
+                                <div class="history-item-date">${dateStr}</div>
+                            </div>
+                        </div>
+                        <div class="history-item-preview">
+                            ${getHistoryPreview(plan.data)}
+                        </div>
+                        <div class="history-item-actions">
+                            <button onclick="loadPlanFromHistory(${plan.id})">${translations[currentLang].loadPlan}</button>
+                            <button onclick="deletePlanFromHistory(${plan.id})">${translations[currentLang].deletePlan}</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function getHistoryPreview(data) {
+            const daysWithActivities = data.filter(d => d.activities && d.activities.length > 0);
+            if (daysWithActivities.length === 0) return '';
+
+            const preview = daysWithActivities.slice(0, 2).map(day => {
+                const dayLabel = currentLang === 'ko' ? `${day.day}일차` : `Day ${day.day}`;
+                const firstActivities = day.activities.slice(0, 2).map(a => a.description).join(', ');
+                return `${dayLabel}: ${firstActivities}${day.activities.length > 2 ? '...' : ''}`;
+            }).join('<br>');
+
+            return preview;
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = 'save-notification';
+            notification.textContent = message;
+            
+            if (type === 'warning') {
+                notification.style.background = 'rgba(230, 126, 34, 0.95)';
+            } else if (type === 'info') {
+                notification.style.background = 'rgba(52, 152, 219, 0.95)';
+            }
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 2000);
+        }
+
+        // Load saved plan on startup
+        function loadLastPlan() {
+            const history = getTripHistory();
+            if (history.length > 0) {
+                // Optionally auto-load the most recent plan
+                // tripData = JSON.parse(JSON.stringify(history[0].data));
+                // refreshTripPlanner();
+            }
+        }
+
+        function updateTripPlan(planUpdate) {
+            const { action, day, activity, index, search, activities } = planUpdate;
+
+            let dayData = tripData.find(d => d.day === day);
+
+            if (!dayData && day > 0 && day <= 14) {
+                dayData = {
+                    day: day,
+                    title: `Day ${day}`,
+                    activities: []
+                };
+                tripData.push(dayData);
+                tripData.sort((a, b) => a.day - b.day);
+            }
+
+            if (!dayData) return;
+
+            switch (action) {
+                case 'add':
+                    dayData.activities.push(activity);
+                    dayData.activities.sort((a, b) => a.time.localeCompare(b.time));
+                    break;
+
+                case 'set_activities':
+                    dayData.activities = activities;
+                    dayData.activities.sort((a, b) => a.time.localeCompare(b.time));
+                    break;
+
+                case 'remove':
+                    if (typeof index === 'number') {
+                        if (index === -1) {
+                            dayData.activities.pop();
+                        } else {
+                            dayData.activities.splice(index, 1);
+                        }
+                    } else if (typeof index === 'string') {
+                        const foundIndex = dayData.activities.findIndex(a =>
+                            a.description.toLowerCase().includes(index.toLowerCase())
+                        );
+                        if (foundIndex !== -1) {
+                            dayData.activities.splice(foundIndex, 1);
+                        }
+                    }
+                    break;
+
+                case 'clear':
+                    dayData.activities = [];
+                    break;
+
+                case 'replace':
+                    if (search) {
+                        const foundIndex = dayData.activities.findIndex(a =>
+                            a.description.toLowerCase().includes(search.toLowerCase())
+                        );
+                        if (foundIndex !== -1) {
+                            if (!activity.time) {
+                                activity.time = dayData.activities[foundIndex].time;
+                            }
+                            if (!activity.lat && dayData.activities[foundIndex].lat) {
+                                activity.lat = dayData.activities[foundIndex].lat;
+                                activity.lng = dayData.activities[foundIndex].lng;
+                            }
+                            dayData.activities[foundIndex] = activity;
+                        }
+                    }
+                    break;
+            }
+
+            refreshTripPlanner(day);
+
+            if (routeVisible) {
+                drawRequiredRoutes();
+            }
+
+            showPlanUpdateNotification();
+        }
+
+        function showPlanUpdateNotification() {
+            const tripPlanner = document.getElementById('trip-planner');
+            tripPlanner.style.animation = 'none';
+            setTimeout(() => {
+                tripPlanner.style.animation = 'planUpdate 0.5s ease';
+            }, 10);
+        }
+
+        function refreshTripPlanner(expandedDay = null) {
+            const tripDaysContainer = document.getElementById('trip-days');
+
+            const expandedDays = Array.from(document.querySelectorAll('.day-item.expanded'))
+                .map(item => item.querySelector('h3').innerText);
+
+            tripDaysContainer.innerHTML = '';
+
+            tripData.forEach(day => {
+                const dayItem = document.createElement('div');
+                dayItem.className = 'day-item';
+
+                if (expandedDays.some(title => title === day.title) || (expandedDay && day.day === expandedDay)) {
+                    dayItem.classList.add('expanded');
+                }
+
+                const dayHeader = document.createElement('div');
+                dayHeader.className = 'day-header';
+
+                const dayPrefix = currentLang === 'ko' ? '' : 'Day ';
+                const daySuffix = currentLang === 'ko' ? '일차' : '';
+                const displayTitle = `${dayPrefix}${day.day}${daySuffix}`;
+
+                dayHeader.innerHTML = `
+                    <h3>${displayTitle}</h3>
+                    <span class="arrow">▼</span>
+                `;
+
+                const dayDetails = document.createElement('div');
+                dayDetails.className = 'day-details';
+
+                const dayDetailsContent = document.createElement('div');
+                dayDetailsContent.className = 'day-details-content';
+
+                if (day.activities.length === 0) {
+                    const emptyMsg = document.createElement('div');
+                    emptyMsg.className = 'activity';
+                    emptyMsg.innerHTML = `<div class="activity-description" style="opacity: 0.6;">${translations[currentLang].emptyPlan}</div>`;
+                    dayDetailsContent.appendChild(emptyMsg);
+                } else {
+                    day.activities.forEach((activity, index) => {
+                        const activityDiv = document.createElement('div');
+                        activityDiv.className = 'activity';
+                        const transportHtml = activity.transport ? `<div class="transport-info"><span>➔</span> ${activity.transport}</div>` : '';
+                        activityDiv.innerHTML = `
+                            ${transportHtml}
+                            <div class="activity-time">${activity.time}</div>
+                            <div class="activity-description">${activity.description}</div>
+                        `;
+
+                        activityDiv.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            highlightSegment(day.day, index);
+
+                            document.querySelectorAll('.activity').forEach(a => a.style.backgroundColor = '');
+                            activityDiv.style.backgroundColor = 'rgba(255,255,255,0.3)';
+                        });
+
+                        dayDetailsContent.appendChild(activityDiv);
+                    });
+                }
+
+                dayDetails.appendChild(dayDetailsContent);
+                dayItem.appendChild(dayHeader);
+                dayItem.appendChild(dayDetails);
+                tripDaysContainer.appendChild(dayItem);
+
+                dayHeader.addEventListener('click', () => {
+                    const wasExpanded = dayItem.classList.contains('expanded');
+
+                    dayItem.classList.toggle('expanded');
+
+                    if (routeVisible) {
+                        if (!wasExpanded) {
+                            drawRequiredRoutes(day.day);
+                        } else {
+                            setTimeout(() => drawRequiredRoutes(), 10);
+                        }
+                    }
+                });
+            });
+        }
+
+        function initTripPlanner() {
+            refreshTripPlanner();
+            loadLastPlan();
+            refreshHistoryList();
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            initTripPlanner();
+
+            const plannerToggle = document.getElementById('planner-toggle');
+            const tripPlanner = document.getElementById('trip-planner');
+            const historyToggle = document.getElementById('history-toggle');
+            const historySidebar = document.getElementById('history-sidebar');
+            const savePlanBtn = document.getElementById('save-plan');
+            const clearHistoryBtn = document.getElementById('clear-history');
+            const langToggle = document.getElementById('lang-toggle');
+            const langText = document.getElementById('lang-text');
+            const chatInput = document.getElementById('chat-input');
+
+            // Save plan button
+            savePlanBtn.addEventListener('click', () => {
+                saveCurrentPlan();
+            });
+
+            // Clear history button
+            clearHistoryBtn.addEventListener('click', () => {
+                clearAllHistory();
+            });
+
+            // Handle Planner Toggle
+            plannerToggle.addEventListener('click', () => {
+                tripPlanner.classList.toggle('hidden');
+
+                if (tripPlanner.classList.contains('hidden')) {
+                    plannerToggle.style.left = '20px';
+                } else {
+                    plannerToggle.style.left = '370px';
+                }
+            });
+
+            plannerToggle.style.left = '370px';
+
+            // Handle History Toggle
+            historyToggle.addEventListener('click', () => {
+                historySidebar.classList.toggle('hidden');
+
+                if (historySidebar.classList.contains('hidden')) {
+                    historyToggle.style.right = '20px';
+                } else {
+                    historyToggle.style.right = '370px';
+                }
+            });
+
+            function applyTranslations() {
+                langText.textContent = translations[currentLang].langBtn;
+
+                document.querySelectorAll('[data-i18n]').forEach(el => {
+                    const key = el.getAttribute('data-i18n');
+                    if (translations[currentLang][key]) {
+                        el.textContent = translations[currentLang][key];
+                    }
+                });
+
+                if (chatInput) chatInput.placeholder = translations[currentLang].chatPlaceholder;
+
+                refreshTripPlanner();
+                refreshHistoryList();
+            }
+
+            applyTranslations();
+
+            langToggle.addEventListener('click', () => {
+                currentLang = currentLang === 'en' ? 'ko' : 'en';
+                applyTranslations();
+            });
+        });
+
+        // Chatbot Functionality
+        document.addEventListener('DOMContentLoaded', function () {
+            const chatToggle = document.getElementById('chat-toggle');
+            const chatbotContainer = document.getElementById('chatbot-container');
+            const chatClose = document.getElementById('chatbot-close');
+            const chatInput = document.getElementById('chat-input');
+            const chatSend = document.getElementById('chat-send');
+            const chatMessages = document.getElementById('chat-messages');
+
+            chatToggle.addEventListener('click', () => {
+                chatbotContainer.classList.toggle('visible');
+            });
+
+            chatClose.addEventListener('click', () => {
+                chatbotContainer.classList.remove('visible');
+            });
+
+            function sendMessage() {
+                const message = chatInput.value.trim();
+                if (!message) return;
+
+                const userMsg = document.createElement('div');
+                userMsg.className = 'chat-message user';
+                userMsg.textContent = message;
+                chatMessages.appendChild(userMsg);
+
+                chatInput.value = '';
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                                const loadingId = 'loading-' + Date.now(); // 고유 ID 생성
+                const botMsg = document.createElement('div');
+                botMsg.className = 'chat-message bot';
+                botMsg.id = loadingId;
+                botMsg.innerHTML = '🤖 일정을 확인하고 있습니다 <span class="dot-ani">...</span>';
+                chatMessages.appendChild(botMsg);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        tripData: tripData,
+                        lang: currentLang
+                    })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+
+                        const loadingElement = document.getElementById(loadingId);
+                        if (loadingElement) loadingElement.remove();
+
+                        const botMsg = document.createElement('div');
+                        botMsg.className = 'chat-message bot';
+                        botMsg.textContent = data.response;
+                        chatMessages.appendChild(botMsg);
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                        if (data.planUpdates && Array.isArray(data.planUpdates)) {
+                            data.planUpdates.forEach(update => {
+                                updateTripPlan(update);
+                            });
+                        }
+                        else if (data.planUpdate) {
+                            updateTripPlan(data.planUpdate);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        const botMsg = document.createElement('div');
+                        botMsg.className = 'chat-message bot';
+                        botMsg.textContent = 'Sorry, I encountered an error. Please try again.';
+                        chatMessages.appendChild(botMsg);
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    });
+            }
+
+            chatSend.addEventListener('click', sendMessage);
+            chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+        });
+
+        setInterval(() => {
+            markers.forEach(marker => marker.setMap(null));
+            markers = [];
+            infoWindows = [];
+
+            loadLockerData();
+        }, 60000);
+    </script>
+</body>
+
+</html>
