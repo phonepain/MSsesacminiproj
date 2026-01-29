@@ -28,7 +28,7 @@
             position: fixed;
             top: 20px;
             left: 50%;
-            transform: translateX(-50%);
+            transform: translateX(-96px);
             z-index: 1000;
             background: #2ecc71;
             padding: 12px 16px;
@@ -44,7 +44,7 @@
         }
 
         #toggle-button:hover {
-            transform: translateX(-50%) scale(1.05);
+            transform: translateX(-90px) scale(1.05);
             box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
         }
 
@@ -56,7 +56,7 @@
             position: fixed;
             top: 20px;
             left: 50%;
-            transform: translateX(40px);
+            transform: translateX(-28px);
             z-index: 1000;
             background: #e67e22;
             padding: 12px 16px;
@@ -72,13 +72,38 @@
         }
 
         #route-toggle:hover {
-            transform: translateX(40px) scale(1.05);
+            transform: translateX(-28px) scale(1.05);
             box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
         }
 
         #route-toggle.off {
             background: #95a5a6;
             opacity: 0.8;
+        }
+
+        #coming-soon-button {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(40px);
+            z-index: 1000;
+            background: #9b59b6;
+            padding: 12px 16px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            cursor: pointer;
+            border: none;
+            font-size: 24px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        #coming-soon-button:hover {
+            transform: translateX(34px) scale(1.05);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
         }
 
         #mode-selector {
@@ -99,14 +124,6 @@
             display: flex;
         }
 
-                .dot-ani {
-           animation: blink 1.5s infinite;
-        }
-        @keyframes blink {
-            0%, 100% { opacity: 0; }
-            50% { opacity: 1; }
-        }
-
         .mode-option {
             padding: 5px 10px;
             border-radius: 15px;
@@ -115,6 +132,14 @@
             font-weight: bold;
             color: #555;
             transition: all 0.2s;
+        }
+
+        .dot-ani {
+           animation: blink 1.5s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
         }
 
         .mode-option.active {
@@ -827,6 +852,7 @@
 
     <button id="toggle-button" title="Toggle Lockers">🗄️</button>
     <button id="route-toggle" class="off" title="Toggle Route">🛣️</button>
+    <button id="coming-soon-button" title="Coming Soon">❓</button>
 
     <div id="mode-selector">
         <div class="mode-option active" data-mode="transit">🚌 Transit</div>
@@ -859,7 +885,7 @@
     </div>
 
     <!-- Chatbot -->
-    <div id="chatbot-container">
+    <div id="chatbot-container" class="visible">
         <div id="chatbot-header">
             <h3 data-i18n="botTitle">🤖 Trip Assistant</h3>
             <button id="chatbot-close">×</button>
@@ -958,19 +984,24 @@
                     locker.medium.available +
                     locker.small.available;
 
-                const markerColor = totalAvailable > 0 ? '#2ecc71' : '#e74c3c';
+                let markerColor = '#2ecc71';
+                if (totalAvailable === 0) {
+                    markerColor = '#e74c3c';
+                } else if (totalAvailable >= 1 && totalAvailable <= 10) {
+                    markerColor = '#f39c12';
+                }
 
                 const marker = new naver.maps.Marker({
                     position: position,
                     map: markersVisible ? map : null,
                     title: locker.name,
-                    icon: {
+                    icon: { //보관함 남은 갯수
                         content: `
                             <div style="
                                 background: ${markerColor};
-                                width: 24px;
-                                height: 24px;
-                                border-radius: 50%;
+                                width: 15px;
+                                height: 15px;
+                                border-radius: 4px;
                                 border: 3px solid white;
                                 box-shadow: 0 2px 8px rgba(0,0,0,0.3);
                                 display: flex;
@@ -980,7 +1011,7 @@
                                 font-size: 12px;
                                 font-weight: bold;
                             ">
-                                ${totalAvailable}
+                                <!--${totalAvailable} -->
                             </div>
                         `,
                         anchor: new naver.maps.Point(12, 12)
@@ -1048,11 +1079,13 @@
 
         window.onload = initMap;
 
-        let markersVisible = true;
+        let markersVisible = false;
 
         document.addEventListener('DOMContentLoaded', function () {
             const toggleButton = document.getElementById('toggle-button');
+            toggleButton.classList.add('off');
             const routeToggle = document.getElementById('route-toggle');
+            const comingSoonButton = document.getElementById('coming-soon-button');
             const modeSelector = document.getElementById('mode-selector');
             const modeOptions = document.querySelectorAll('.mode-option');
 
@@ -1085,6 +1118,13 @@
                     clearRoutes();
                     resetLockerFilter();
                 }
+            });
+
+            // Coming Soon button - shows alert
+            comingSoonButton.addEventListener('click', function () {
+                alert(currentLang === 'ko' ? 
+                    '🚀 새로운 기능이 곧 추가됩니다!\n\n기대해 주세요!' : 
+                    '🚀 New features coming soon!\n\nStay tuned!');
             });
 
             modeOptions.forEach(option => {
@@ -1295,17 +1335,21 @@
 
                                 // Use the detailed path from backend (already includes loadLane data)
                                 const subCoords = sub.path.map(p => new naver.maps.LatLng(p[0], p[1]));
-                                let color = '#95a5a6';
-                                let style = 'shortdash';
-                                let weight = 3;
+                                let color = '#4e4a00';
+                                let style = 'dotted';
+                                let weight = 5;
 
-                                if (sub.trafficType === 1) {
-                                    color = '#3498db';
+                                if (sub.trafficType === 1) { //지하철
+                                    color = '#800080';
                                     style = 'solid';
                                     weight = 5;
-                                } else if (sub.trafficType === 2) {
-                                    color = '#2ecc71';
+                                } else if (sub.trafficType === 2) { //버스
+                                    color = '#000080';
                                     style = 'solid';
+                                    weight = 5;
+                                } else if (sub.trafficType === 3) { //도보
+                                    color = '#4e4a00';
+                                    style = 'dotted';
                                     weight = 5;
                                 }
 
@@ -1388,7 +1432,7 @@
                             const polyline = new naver.maps.Polyline({
                                 map: map,
                                 path: pathCoords,
-                                strokeColor: currentRouteMode === 'transit' ? '#3498db' : '#e67e22',
+                                strokeColor: currentRouteMode === 'transit' ? '#3498db' : '#ff7d09',
                                 strokeWeight: 5,
                                 strokeOpacity: 0.8,
                                 strokeStyle: currentRouteMode === 'transit' ? 'solid' : 'shortdash',
@@ -1999,11 +2043,11 @@
                 chatInput.value = '';
                 chatMessages.scrollTop = chatMessages.scrollHeight;
 
-                                const loadingId = 'loading-' + Date.now(); // 고유 ID 생성
+                const loadingId = 'loading-' + Date.now(); // 고유 ID 생성
                 const botMsg = document.createElement('div');
                 botMsg.className = 'chat-message bot';
                 botMsg.id = loadingId;
-                botMsg.innerHTML = '🤖 일정을 확인하고 있습니다 <span class="dot-ani">...</span>';
+                botMsg.innerHTML = '🤖 생각중 <span class="dot-ani">...</span>';
                 chatMessages.appendChild(botMsg);
                 chatMessages.scrollTop = chatMessages.scrollHeight;
 
@@ -2063,7 +2107,7 @@
             infoWindows = [];
 
             loadLockerData();
-        }, 60000);
+        }, 600000);
     </script>
 </body>
 
